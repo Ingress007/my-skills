@@ -1,0 +1,13 @@
+{
+    "blacklist": [
+        "^rm\\s+-rf\\s+/$",
+        "^mkfs",
+        "^dd\\s+if="
+    ],
+    "confirm_patterns": [
+        "^rm",
+        "^reboot",
+        "^shutdown",
+        "^systemctl\\s+(stop|restart)"
+    ]
+}
