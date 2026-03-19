@@ -1,0 +1,14 @@
+# Environment files (may contain secrets)
+.env
+*.env
+
+# Encrypted secret key
+linux-ops/scripts/secret.key
+
+# Server configuration (contains encrypted passwords)
+linux-ops/scripts/servers.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo

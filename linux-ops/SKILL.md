@@ -22,7 +22,8 @@ Before executing commands, you must add servers to the configuration.
 
 **Add a server:**
 ```bash
-python linux-ops/scripts/ssh_manager.py add-server <alias> <hostname> --user <username> --password <password> [--port <port>]
+python linux-ops/scripts/ssh_manager.py add-server <alias> <hostname> --user <username> [--port <port>]
+# Password will be prompted securely (not saved to shell history)
 # OR with SSH key
 python linux-ops/scripts/ssh_manager.py add-server <alias> <hostname> --user <username> --key <path_to_private_key>
 ```

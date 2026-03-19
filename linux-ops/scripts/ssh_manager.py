@@ -172,7 +172,7 @@ def main():
     add_parser.add_argument("hostname", help="Server hostname or IP")
     add_parser.add_argument("--port", default=22, type=int, help="SSH port")
     add_parser.add_argument("--user", required=True, help="SSH username")
-    add_parser.add_argument("--password", help="SSH password")
+    add_parser.add_argument("--password", help="SSH password (will prompt if not provided)")
     add_parser.add_argument("--key", help="Path to SSH private key")
 
     # remove-server
@@ -204,7 +204,13 @@ def main():
             sys.exit(1)
             
     elif args.action == "add-server":
-        manager.cm.add_server(args.alias, args.hostname, args.port, args.user, args.password, args.key)
+        # 交互式输入密码，避免命令行历史泄露
+        password = args.password
+        if not password and not args.key:
+            import getpass
+            password = getpass.getpass("Password: ")
+
+        manager.cm.add_server(args.alias, args.hostname, args.port, args.user, password, args.key)
         print(json.dumps({"status": "success", "message": f"Server {args.alias} added."}))
         
     elif args.action == "remove-server":
