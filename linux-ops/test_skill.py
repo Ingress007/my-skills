@@ -38,15 +38,12 @@ def test_ssh_config_parser():
     print("\n[SSH Config Parser Tests]")
     runner = TestRunner()
 
-    # Test parsing SSH config
     hosts = parse_ssh_config()
     runner.assert_true(isinstance(hosts, dict), "parse_ssh_config returns dict")
 
-    # Test list_hosts
     host_list = list_hosts()
     runner.assert_true(isinstance(host_list, list), "list_hosts returns list")
 
-    # Test get_host_config for existing host
     if host_list:
         first_host = host_list[0]
         config = get_host_config(first_host)
@@ -56,7 +53,6 @@ def test_ssh_config_parser():
             runner.assert_true("port" in config, "Config contains port")
             runner.assert_true("user" in config, "Config contains user")
 
-    # Test get_host_config for non-existent host
     config = get_host_config("__nonexistent__")
     runner.assert_true(config is None, "get_host_config returns None for non-existent host")
 
@@ -69,11 +65,9 @@ def test_config_manager():
     runner = TestRunner()
     cm = ConfigManager()
 
-    # Test list_servers returns hosts from SSH config
     servers = cm.list_servers()
     runner.assert_true(isinstance(servers, list), "list_servers returns list")
 
-    # Test get_server returns config from SSH config
     if servers:
         first_server = servers[0]
         server = cm.get_server(first_server)
@@ -81,7 +75,6 @@ def test_config_manager():
         if server:
             runner.assert_true("hostname" in server, "Server config contains hostname")
 
-    # Test get_server for non-existent alias
     server = cm.get_server("__nonexistent__")
     runner.assert_true(server is None, "get_server returns None for non-existent alias")
 
@@ -94,7 +87,7 @@ def test_command_safety():
     runner = TestRunner()
     cm = ConfigManager()
 
-    # Blacklisted commands - should be blocked
+    # Blacklisted commands
     tests_blocked = [
         ("rm -rf /", "rm -rf / blocked"),
         ("mkfs.ext4 /dev/sda1", "mkfs blocked"),
@@ -118,7 +111,7 @@ def test_command_safety():
         allowed, req_conf, _ = cm.check_command(cmd)
         runner.assert_true(allowed and req_conf, msg)
 
-    # Safe commands - allowed without confirmation
+    # Safe commands
     tests_safe = [
         ("ls -la", "ls allowed"),
         ("uptime", "uptime allowed"),
@@ -148,10 +141,11 @@ def test_ssh_manager_mock():
     runner.assert_true(result["status"] == "error", "Non-existent server returns error")
     runner.assert_true("not found" in result["message"].lower(), "Error message mentions 'not found'")
 
-    # Test blacklisted command (on a real host if available)
     servers = cm.list_servers()
     if servers:
         test_host = servers[0]
+
+        # Test blacklisted command
         result = manager.execute(test_host, "rm -rf /")
         runner.assert_true(result["status"] == "error", "Blacklisted command returns error")
         runner.assert_true("blocked" in result["message"].lower(), "Error message mentions 'blocked'")
@@ -175,33 +169,32 @@ def test_cli_interface():
 
     script_path = os.path.join(os.path.dirname(__file__), "scripts", "ssh_manager.py")
 
-    # Test help command
+    # Test help
     result = subprocess.run(
         [sys.executable, script_path, "--help"],
         capture_output=True, text=True, encoding='utf-8'
     )
     runner.assert_true(result.returncode == 0, "Help command succeeds")
 
-    # Test list-servers command
+    # Test list-servers
     result = subprocess.run(
         [sys.executable, script_path, "list-servers"],
         capture_output=True, text=True, encoding='utf-8'
     )
-    runner.assert_true(result.returncode == 0, "list-servers command succeeds")
+    runner.assert_true(result.returncode == 0, "list-servers succeeds")
 
-    # Verify list-servers returns valid JSON
     try:
         output = json.loads(result.stdout)
         runner.assert_true("hosts" in output, "list-servers output contains 'hosts'")
     except json.JSONDecodeError:
         runner.assert_true(False, "list-servers returns valid JSON")
 
-    # Test exec with non-existent server
+    # Test invalid server
     result = subprocess.run(
         [sys.executable, script_path, "exec", "__nonexistent__", "ls"],
         capture_output=True, text=True, encoding='utf-8'
     )
-    runner.assert_true(result.returncode == 1, "Invalid server returns error code 1")
+    runner.assert_true(result.returncode == 1, "Invalid server returns error")
 
     return runner.passed, runner.failed
 
@@ -209,7 +202,6 @@ def test_cli_interface():
 def main():
     print("=" * 50)
     print("Linux Ops Skill Test Suite")
-    print("(SSH Config Based Version)")
     print("=" * 50)
 
     total_passed = 0

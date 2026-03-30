@@ -1,0 +1,12 @@
+{
+    "blacklist": [
+        "^docker\\s+system\\s+prune\\s+-af",
+        "^docker\\s+rm\\s+-f.*\\$\\(docker",
+        "^docker\\s+rmi.*\\$\\(docker"
+    ],
+    "confirm_patterns": [
+        "^docker\\s+(stop|restart|rm|rmi|push|build)",
+        "^docker\\s+system\\s+prune",
+        "^docker\\s+compose\\s+(up|down|restart|build)"
+    ]
+}

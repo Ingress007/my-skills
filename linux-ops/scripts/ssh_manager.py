@@ -179,7 +179,7 @@ def main():
                              help="Confirm execution of sensitive commands")
 
     # diagnose
-    diag_parser = subparsers.add_parser("diagnose", help="Run diagnostic script on server")
+    diag_parser = subparsers.add_parser("diagnose", help="Run system diagnostic script on server")
     diag_parser.add_argument("alias", help="Host alias from SSH config")
 
     # list-servers

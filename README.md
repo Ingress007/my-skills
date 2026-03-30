@@ -1,0 +1,76 @@
+# my-skills
+
+Claude Code Skills 个人仓库，包含用于 AI Agent 的实用技能模块。
+
+## Skills 概览
+
+| Skill | 描述 | 主要功能 |
+|-------|------|----------|
+| [linux-ops](linux-ops/) | Linux 服务器运维 | SSH 执行、系统诊断、安全控制 |
+| [docker-ops](docker-ops/) | Docker 容器管理 | 容器/镜像/Compose 管理、多仓库支持 |
+
+## 快速开始
+
+### 1. 安装依赖
+
+```bash
+pip install paramiko
+```
+
+### 2. 配置 SSH
+
+确保 `~/.ssh/config` 配置了服务器连接：
+
+```ssh
+Host my-server
+    HostName 192.168.1.10
+    User root
+    Port 22
+    IdentityFile ~/.ssh/id_rsa
+```
+
+### 3. 使用示例
+
+**Linux 操作：**
+```bash
+python linux-ops/scripts/ssh_manager.py list-servers
+python linux-ops/scripts/ssh_manager.py exec my-server "uptime"
+```
+
+**Docker 操作：**
+```bash
+python docker-ops/scripts/docker_manager.py my-server ps
+python docker-ops/scripts/docker_manager.py my-server compose-up --file compose.yaml --confirm
+```
+
+## 项目结构
+
+```
+my-skills/
+├── README.md                   # 本文件
+│
+├── linux-ops/                  # Linux 基础操作 Skill
+│   ├── README.md
+│   ├── SKILL.md               # Claude Code Skill 定义
+│   ├── requirements.txt
+│   ├── test_skill.py
+│   └── scripts/
+│
+└── docker-ops/                 # Docker 操作 Skill
+    ├── README.md
+    ├── SKILL.md               # Claude Code Skill 定义
+    ├── requirements.txt
+    ├── test_skill.py
+    └── scripts/
+```
+
+## 测试
+
+```bash
+python linux-ops/test_skill.py
+python docker-ops/test_skill.py
+```
+
+## 许可证
+
+MIT
