@@ -1,3 +1,6 @@
+"""
+Test Suite for Linux Ops Skill - SSH Config Based Version
+"""
 import sys
 import os
 import json
@@ -13,13 +16,13 @@ scripts_path = os.path.join(os.path.dirname(__file__), "scripts")
 sys.path.insert(0, scripts_path)
 from config_manager import ConfigManager
 from ssh_manager import SSHManager
+from ssh_config_parser import parse_ssh_config, list_hosts, get_host_config
 
 
 class TestRunner:
     def __init__(self):
         self.passed = 0
         self.failed = 0
-        self.test_alias = "__test_server__"
 
     def assert_true(self, condition, message):
         if condition:
@@ -29,40 +32,58 @@ class TestRunner:
             print(f"  ✗ {message}")
             self.failed += 1
 
-    def cleanup(self, cm):
-        """Remove test server if exists."""
-        if self.test_alias in cm.list_servers():
-            cm.remove_server(self.test_alias)
+
+def test_ssh_config_parser():
+    """Test SSH config file parsing."""
+    print("\n[SSH Config Parser Tests]")
+    runner = TestRunner()
+
+    # Test parsing SSH config
+    hosts = parse_ssh_config()
+    runner.assert_true(isinstance(hosts, dict), "parse_ssh_config returns dict")
+
+    # Test list_hosts
+    host_list = list_hosts()
+    runner.assert_true(isinstance(host_list, list), "list_hosts returns list")
+
+    # Test get_host_config for existing host
+    if host_list:
+        first_host = host_list[0]
+        config = get_host_config(first_host)
+        runner.assert_true(config is not None, f"get_host_config returns config for '{first_host}'")
+        if config:
+            runner.assert_true("hostname" in config, "Config contains hostname")
+            runner.assert_true("port" in config, "Config contains port")
+            runner.assert_true("user" in config, "Config contains user")
+
+    # Test get_host_config for non-existent host
+    config = get_host_config("__nonexistent__")
+    runner.assert_true(config is None, "get_host_config returns None for non-existent host")
+
+    return runner.passed, runner.failed
 
 
 def test_config_manager():
-    """Test ConfigManager core functionality."""
+    """Test ConfigManager SSH config integration."""
     print("\n[ConfigManager Tests]")
     runner = TestRunner()
     cm = ConfigManager()
 
-    runner.cleanup(cm)
-
-    # Test add server
-    cm.add_server(runner.test_alias, "192.168.1.100", 22, "admin", password="secret123")
-    runner.assert_true(runner.test_alias in cm.list_servers(), "Add server")
-
-    # Test password encryption/decryption
-    server = cm.get_server(runner.test_alias)
-    runner.assert_true(server["password"] == "secret123", "Password encryption/decryption")
-
-    # Test server info
-    runner.assert_true(server["hostname"] == "192.168.1.100", "Server hostname stored")
-    runner.assert_true(server["username"] == "admin", "Server username stored")
-    runner.assert_true(server["port"] == 22, "Server port stored")
-
-    # Test list servers
+    # Test list_servers returns hosts from SSH config
     servers = cm.list_servers()
-    runner.assert_true(runner.test_alias in servers, "List servers")
+    runner.assert_true(isinstance(servers, list), "list_servers returns list")
 
-    # Test remove server
-    cm.remove_server(runner.test_alias)
-    runner.assert_true(runner.test_alias not in cm.list_servers(), "Remove server")
+    # Test get_server returns config from SSH config
+    if servers:
+        first_server = servers[0]
+        server = cm.get_server(first_server)
+        runner.assert_true(server is not None, f"get_server returns config for '{first_server}'")
+        if server:
+            runner.assert_true("hostname" in server, "Server config contains hostname")
+
+    # Test get_server for non-existent alias
+    server = cm.get_server("__nonexistent__")
+    runner.assert_true(server is None, "get_server returns None for non-existent alias")
 
     return runner.passed, runner.failed
 
@@ -73,7 +94,7 @@ def test_command_safety():
     runner = TestRunner()
     cm = ConfigManager()
 
-    # Blacklisted commands
+    # Blacklisted commands - should be blocked
     tests_blocked = [
         ("rm -rf /", "rm -rf / blocked"),
         ("mkfs.ext4 /dev/sda1", "mkfs blocked"),
@@ -97,13 +118,15 @@ def test_command_safety():
         allowed, req_conf, _ = cm.check_command(cmd)
         runner.assert_true(allowed and req_conf, msg)
 
-    # Safe commands
+    # Safe commands - allowed without confirmation
     tests_safe = [
         ("ls -la", "ls allowed"),
         ("uptime", "uptime allowed"),
         ("df -h", "df allowed"),
         ("cat /var/log/syslog", "cat allowed"),
         ("docker ps", "docker ps allowed"),
+        ("free -m", "free allowed"),
+        ("top -bn1", "top allowed"),
     ]
 
     for cmd, msg in tests_safe:
@@ -120,31 +143,28 @@ def test_ssh_manager_mock():
     cm = ConfigManager()
     manager = SSHManager()
 
-    runner.cleanup(cm)
-
     # Test non-existent server
-    result = manager.execute("non-existent-server", "ls")
+    result = manager.execute("__nonexistent__", "ls")
     runner.assert_true(result["status"] == "error", "Non-existent server returns error")
-    runner.assert_true("not found" in result["message"], "Error message contains 'not found'")
+    runner.assert_true("not found" in result["message"].lower(), "Error message mentions 'not found'")
 
-    # Test blacklisted command
-    cm.add_server(runner.test_alias, "192.168.1.100", 22, "admin", password="test")
-    result = manager.execute(runner.test_alias, "rm -rf /")
-    runner.assert_true(result["status"] == "error", "Blacklisted command returns error")
-    runner.assert_true("blocked" in result["message"], "Error message contains 'blocked'")
+    # Test blacklisted command (on a real host if available)
+    servers = cm.list_servers()
+    if servers:
+        test_host = servers[0]
+        result = manager.execute(test_host, "rm -rf /")
+        runner.assert_true(result["status"] == "error", "Blacklisted command returns error")
+        runner.assert_true("blocked" in result["message"].lower(), "Error message mentions 'blocked'")
 
-    # Test command requiring confirmation (without --confirm)
-    result = manager.execute(runner.test_alias, "reboot")
-    runner.assert_true(result["status"] == "error", "Unconfirmed command returns error")
-    runner.assert_true("confirmation" in result["message"], "Error message mentions confirmation")
+        # Test command requiring confirmation (without --confirm)
+        result = manager.execute(test_host, "reboot")
+        runner.assert_true(result["status"] == "error", "Unconfirmed command returns error")
+        runner.assert_true("confirmation" in result["message"].lower(), "Error message mentions confirmation")
 
-    # Test command requiring confirmation (with --confirm)
-    # Note: We can't test actual execution without a real server,
-    # but we can verify the confirmation check passes
-    allowed, req_conf, _ = cm.check_command("reboot")
-    runner.assert_true(allowed and req_conf, "reboot allowed with confirm flag")
+        # Verify confirmation check passes for reboot with confirm=True
+        allowed, req_conf, _ = cm.check_command("reboot")
+        runner.assert_true(allowed and req_conf, "reboot is allowed with confirmation requirement")
 
-    runner.cleanup(cm)
     return runner.passed, runner.failed
 
 
@@ -158,21 +178,28 @@ def test_cli_interface():
     # Test help command
     result = subprocess.run(
         [sys.executable, script_path, "--help"],
-        capture_output=True, text=True
+        capture_output=True, text=True, encoding='utf-8'
     )
     runner.assert_true(result.returncode == 0, "Help command succeeds")
 
     # Test list-servers command
     result = subprocess.run(
         [sys.executable, script_path, "list-servers"],
-        capture_output=True, text=True
+        capture_output=True, text=True, encoding='utf-8'
     )
     runner.assert_true(result.returncode == 0, "list-servers command succeeds")
 
-    # Test invalid command
+    # Verify list-servers returns valid JSON
+    try:
+        output = json.loads(result.stdout)
+        runner.assert_true("hosts" in output, "list-servers output contains 'hosts'")
+    except json.JSONDecodeError:
+        runner.assert_true(False, "list-servers returns valid JSON")
+
+    # Test exec with non-existent server
     result = subprocess.run(
-        [sys.executable, script_path, "exec", "non-existent", "ls"],
-        capture_output=True, text=True
+        [sys.executable, script_path, "exec", "__nonexistent__", "ls"],
+        capture_output=True, text=True, encoding='utf-8'
     )
     runner.assert_true(result.returncode == 1, "Invalid server returns error code 1")
 
@@ -182,12 +209,14 @@ def test_cli_interface():
 def main():
     print("=" * 50)
     print("Linux Ops Skill Test Suite")
+    print("(SSH Config Based Version)")
     print("=" * 50)
 
     total_passed = 0
     total_failed = 0
 
     tests = [
+        test_ssh_config_parser,
         test_config_manager,
         test_command_safety,
         test_ssh_manager_mock,
