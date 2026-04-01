@@ -52,16 +52,26 @@ my-skills/
 ├── linux-ops/                  # Linux 基础操作 Skill
 │   ├── README.md
 │   ├── SKILL.md               # Claude Code Skill 定义
-│   ├── requirements.txt
-│   ├── test_skill.py
+│   ├── requirements.txt       # 依赖：paramiko
+│   ├── test_skill.py          # 测试套件
 │   └── scripts/
+│       ├── ssh_manager.py     # CLI 入口
+│       ├── ssh_config_parser.py  # SSH config 解析
+│       ├── config_manager.py  # 配置和安全检查
+│       ├── blacklist.json     # 安全规则
+│       └── diagnose.sh        # 诊断脚本
 │
 └── docker-ops/                 # Docker 操作 Skill
     ├── README.md
     ├── SKILL.md               # Claude Code Skill 定义
-    ├── requirements.txt
-    ├── test_skill.py
+    ├── requirements.txt       # 依赖：paramiko
+    ├── test_skill.py          # 测试套件
     └── scripts/
+        ├── docker_manager.py  # CLI 入口
+        ├── docker_commands.py # Docker 命令生成器
+        ├── config_manager.py  # 配置和安全检查（复用 linux-ops SSH 解析）
+        ├── blacklist.json     # 安全规则
+        └── diagnose.sh        # Docker 诊断脚本
 ```
 
 ## 测试
