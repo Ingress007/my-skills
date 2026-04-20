@@ -1,0 +1,24 @@
+# RocketMQ 配置
+#
+# 配置优先级: CLI参数 > 自动检测 > 配置文件 > 默认值
+#
+# 使用 --auto-detect 参数可自动检测以下配置项:
+#   - mqadmin_path      (容器内路径)
+#   - namesrv_container (NameServer容器名)
+#   - broker_container  (Broker容器名)
+#   - namesrv_addr      (NameServer地址)
+#   - cluster_name      (集群名称)
+
+rocketmq:
+  # === 可自动检测的配置 ===
+  mqadmin_path: "/home/rocketmq/rocketmq-5.3.0/bin/mqadmin"
+  namesrv_container: "rmqnamesrv"
+  broker_container: "rmqbroker"
+  namesrv_addr: "rmqnamesrv:9876"
+  cluster_name: "DefaultCluster"
+
+  # === 需手动配置的业务参数 ===
+  default_read_queue: 4      # Topic 默认读队列数
+  default_write_queue: 4     # Topic 默认写队列数
+  default_perm: 6            # Topic 默认权限 (2=W, 4=R, 6=RW)
+  default_message_type: "NORMAL"  # Topic 类型 (NORMAL/UNSPECIFIED)

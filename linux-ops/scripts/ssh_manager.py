@@ -1,22 +1,45 @@
 """
 SSH Manager - Execute commands on servers via SSH using .ssh/config
 """
-import paramiko
 import sys
 import os
 import json
 import argparse
+from typing import Dict, Any, Optional
 
-# Add current dir to path to import config_manager
+# Import from shared module
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_shared_path = os.path.join(_project_root, "shared")
+sys.path.insert(0, _shared_path)
+
+from ssh_client import SSHClient, create_ssh_client
+from ssh_config_parser import get_host_config, list_hosts
+from type_defs import SSHServerConfig
+
+# Import local config manager
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from config_manager import ConfigManager
 
 
 class SSHManager:
-    def __init__(self):
-        self.cm = ConfigManager()
+    """SSH command execution manager"""
 
-    def execute(self, alias, command, confirm=False):
+    def __init__(self, timeout: Optional[int] = None):
+        """
+        Initialize SSH Manager.
+
+        Args:
+            timeout: SSH connection timeout in seconds
+        """
+        self.cm: ConfigManager = ConfigManager()
+        self.client: SSHClient = create_ssh_client(timeout)
+
+    def execute(
+        self,
+        alias: str,
+        command: str,
+        confirm: bool = False
+    ) -> Dict[str, Any]:
         """
         Execute a command on a server identified by SSH config alias.
 
@@ -44,6 +67,7 @@ class SSHManager:
                 "exit_code": -1
             }
 
+        # Get server config
         server = self.cm.get_server(alias)
         if not server:
             return {
@@ -52,44 +76,28 @@ class SSHManager:
                 "exit_code": -1
             }
 
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        # Execute via shared SSH client
+        result = self.client.execute(server, command)
 
-        try:
-            connect_kwargs = {
-                "hostname": server["hostname"],
-                "port": int(server["port"]),
-                "username": server["user"] or "root",
-                "timeout": 10
-            }
-
-            if server.get("identityfile"):
-                connect_kwargs["key_filename"] = server["identityfile"]
-
-            client.connect(**connect_kwargs)
-
-            stdin, stdout, stderr = client.exec_command(command)
-            exit_code = stdout.channel.recv_exit_status()
-            out = stdout.read().decode('utf-8', errors='replace')
-            err = stderr.read().decode('utf-8', errors='replace')
-
-            return {
-                "status": "success",
-                "stdout": out,
-                "stderr": err,
-                "exit_code": exit_code
-            }
-
-        except Exception as e:
+        # Convert to compatible format
+        if result["status"] == "error":
             return {
                 "status": "error",
-                "message": str(e),
-                "exit_code": -1
+                "message": result.get("message", "Unknown error"),
+                "exit_code": result["exit_code"]
             }
-        finally:
-            client.close()
+        return {
+            "status": "success",
+            "stdout": result["stdout"],
+            "stderr": result["stderr"],
+            "exit_code": result["exit_code"]
+        }
 
-    def execute_script(self, alias, script_path):
+    def execute_script(
+        self,
+        alias: str,
+        script_path: str
+    ) -> Dict[str, Any]:
         """
         Execute a local script on a remote server.
 
@@ -108,58 +116,23 @@ class SSHManager:
                 "exit_code": -1
             }
 
-        try:
-            with open(script_path, 'r', encoding='utf-8') as f:
-                script_content = f.read()
-        except Exception as e:
+        result = self.client.execute_script_file(server, script_path)
+
+        if result["status"] == "error":
             return {
                 "status": "error",
-                "message": f"Failed to read script: {str(e)}",
-                "exit_code": -1
+                "message": result.get("message", "Unknown error"),
+                "exit_code": result["exit_code"]
             }
-
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        try:
-            connect_kwargs = {
-                "hostname": server["hostname"],
-                "port": int(server["port"]),
-                "username": server["user"] or "root",
-                "timeout": 10
-            }
-            if server.get("identityfile"):
-                connect_kwargs["key_filename"] = server["identityfile"]
-
-            client.connect(**connect_kwargs)
-
-            # Execute bash -s and write script to stdin
-            stdin, stdout, stderr = client.exec_command("bash -s")
-            stdin.write(script_content)
-            stdin.flush()
-            stdin.channel.shutdown_write()  # Signal EOF
-
-            exit_code = stdout.channel.recv_exit_status()
-            out = stdout.read().decode('utf-8', errors='replace')
-            err = stderr.read().decode('utf-8', errors='replace')
-
-            return {
-                "status": "success",
-                "stdout": out,
-                "stderr": err,
-                "exit_code": exit_code
-            }
-        except Exception as e:
-            return {
-                "status": "error",
-                "message": str(e),
-                "exit_code": -1
-            }
-        finally:
-            client.close()
+        return {
+            "status": "success",
+            "stdout": result["stdout"],
+            "stderr": result["stderr"],
+            "exit_code": result["exit_code"]
+        }
 
 
-def main():
+def main() -> None:
     # Force UTF-8 for stdin/stdout/stderr on Windows
     if sys.platform == 'win32':
         sys.stdin.reconfigure(encoding='utf-8')

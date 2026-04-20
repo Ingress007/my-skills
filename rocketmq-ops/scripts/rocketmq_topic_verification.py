@@ -3,10 +3,7 @@
 """
 RocketMQ Topic Verification Script
 核对源服务器和目标服务器的 topic 是否一致
-
-使用示例:
-    python rocketmq_topic_verification.py --source 交付测试服务器 --target 筷电猫测试服务器
-    python rocketmq_topic_verification.py --source 交付测试服务器 --target 筷电猫测试服务器 --detail
+支持配置化：环境变量 > 命令行 > 配置文件 > 默认值
 """
 
 import argparse
@@ -15,13 +12,20 @@ import json
 import re
 import sys
 import io
+import os
 from pathlib import Path
-from collections import defaultdict
+from typing import List, Dict, Any, Optional
 
 # 修复 Windows 终端中文编码问题
 if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+# 导入配置模块
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+if _current_dir not in sys.path:
+    sys.path.insert(0, _current_dir)
+from rocketmq_config import get_rocketmq_config, get_mqadmin_path, RocketMQConfig
 
 # 系统topic过滤列表
 SYSTEM_TOPIC_PATTERNS = [
@@ -41,7 +45,7 @@ SYSTEM_TOPIC_PATTERNS = [
 ]
 
 
-def run_ssh_command(server_alias: str, command: str) -> dict:
+def run_ssh_command(server_alias: str, command: str) -> Dict[str, Any]:
     """通过 ssh_manager.py 执行远程命令"""
     script_dir = Path(__file__).resolve()
     project_root = script_dir.parent.parent.parent
@@ -64,11 +68,6 @@ def run_ssh_command(server_alias: str, command: str) -> dict:
         }
 
 
-def get_mqadmin_path(container: str) -> str:
-    """获取 mqadmin 命令路径"""
-    return f'docker exec {container} /home/rocketmq/rocketmq-5.3.0/bin/mqadmin'
-
-
 def is_system_topic(topic_name: str) -> bool:
     """判断是否为系统topic"""
     for pattern in SYSTEM_TOPIC_PATTERNS:
@@ -77,16 +76,19 @@ def is_system_topic(topic_name: str) -> bool:
     return False
 
 
-def get_topic_list(server: str) -> list:
+def get_topic_list(server: str, config: RocketMQConfig) -> List[str]:
     """获取服务器的业务topic列表"""
-    mqadmin = get_mqadmin_path('rmqnamesrv')
-    result = run_ssh_command(server, f'{mqadmin} topicList -n localhost:9876')
+    mqadmin = get_mqadmin_path(config.paths.namesrv_container)
+    result = run_ssh_command(
+        server,
+        f'{mqadmin} topicList -n {config.paths.namesrv_addr}'
+    )
 
     if result.get('exit_code', 0) != 0:
         print(f"Error: 无法获取 {server} 的topic列表")
         sys.exit(1)
 
-    topics = []
+    topics: List[str] = []
     for line in result['stdout'].strip().split('\n'):
         topic = line.strip()
         if topic and not is_system_topic(topic):
@@ -95,18 +97,19 @@ def get_topic_list(server: str) -> list:
     return sorted(topics)
 
 
-def get_topic_config(server: str, topic: str) -> dict:
+def get_topic_config(server: str, topic: str, config: RocketMQConfig) -> Dict[str, Any]:
     """获取topic详细配置"""
-    mqadmin = get_mqadmin_path('rmqbroker')
+    mqadmin = get_mqadmin_path(config.paths.broker_container)
     result = run_ssh_command(
         server,
-        f'{mqadmin} topicRoute -n rmqnamesrv:9876 -t {topic}'
+        f'{mqadmin} topicRoute -n {config.paths.namesrv_addr} -t {topic}'
     )
 
-    config = {
-        'readQueueNums': 4,
-        'writeQueueNums': 4,
-        'perm': 6,
+    # 使用配置默认值
+    topic_config: Dict[str, Any] = {
+        'readQueueNums': config.topics.read_queue,
+        'writeQueueNums': config.topics.write_queue,
+        'perm': config.topics.perm,
         'messageType': 'UNSPECIFIED'
     }
 
@@ -114,49 +117,77 @@ def get_topic_config(server: str, topic: str) -> dict:
     if 'readQueueNums' in stdout:
         match = re.search(r'"readQueueNums":(\d+)', stdout)
         if match:
-            config['readQueueNums'] = int(match.group(1))
+            topic_config['readQueueNums'] = int(match.group(1))
         match = re.search(r'"writeQueueNums":(\d+)', stdout)
         if match:
-            config['writeQueueNums'] = int(match.group(1))
+            topic_config['writeQueueNums'] = int(match.group(1))
         match = re.search(r'"perm":(\d+)', stdout)
         if match:
-            config['perm'] = int(match.group(1))
+            topic_config['perm'] = int(match.group(1))
 
     # 检查 message.type 属性
     if 'message.type=NORMAL' in stdout or '+message.type=NORMAL' in stdout:
-        config['messageType'] = 'NORMAL'
+        topic_config['messageType'] = 'NORMAL'
 
-    return config
+    return topic_config
 
 
 def format_perm(perm: int) -> str:
     """格式化权限显示"""
-    perms = []
-    if perm & 2: perms.append('W')
-    if perm & 4: perms.append('R')
+    perms: List[str] = []
+    if perm & 2:
+        perms.append('W')
+    if perm & 4:
+        perms.append('R')
     return ''.join(perms) or '-'
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description='RocketMQ Topic Verification Script')
     parser.add_argument('--source', required=True, help='源服务器 SSH alias')
     parser.add_argument('--target', required=True, help='目标服务器 SSH alias')
+
+    # 自动检测参数
+    parser.add_argument('--auto-detect', action='store_true',
+                        help='自动从 Docker 检测配置')
+
+    # 配置覆盖参数
+    parser.add_argument('--mqadmin-path', help='覆盖 mqadmin 路径')
+    parser.add_argument('--namesrv-container', help='NameServer 容器名')
+    parser.add_argument('--broker-container', help='Broker 容器名')
+
+    # 其他参数
     parser.add_argument('--detail', action='store_true', help='显示详细配置对比')
     parser.add_argument('--json', action='store_true', help='输出JSON格式结果')
 
     args = parser.parse_args()
+
+    # 构建配置
+    cli_overrides: Dict[str, Any] = {}
+    if args.mqadmin_path:
+        cli_overrides['mqadmin_path'] = args.mqadmin_path
+    if args.namesrv_container:
+        cli_overrides['namesrv_container'] = args.namesrv_container
+    if args.broker_container:
+        cli_overrides['broker_container'] = args.broker_container
+
+    # 获取配置（支持自动检测）
+    auto_detect_server = args.source if args.auto_detect else None
+    config = get_rocketmq_config(cli_overrides, auto_detect_server)
 
     print("=" * 70)
     print("RocketMQ Topic Verification")
     print("=" * 70)
     print(f"源服务器: {args.source}")
     print(f"目标服务器: {args.target}")
+    if args.auto_detect:
+        print("配置模式: 自动检测")
     print()
 
     # 1. 获取两台服务器的topic列表
     print("[Step 1] 获取 topic 列表...")
-    source_topics = get_topic_list(args.source)
-    target_topics = get_topic_list(args.target)
+    source_topics = get_topic_list(args.source, config)
+    target_topics = get_topic_list(args.target, config)
 
     print(f"源服务器业务 topic: {len(source_topics)} 个")
     print(f"目标服务器业务 topic: {len(target_topics)} 个")
@@ -169,7 +200,7 @@ def main():
     matched = sorted(source_set & target_set)  # 两边都有
     missing = sorted(source_set - target_set)   # 源有目标没有
     extra = sorted(target_set - source_set)     # 目标有源没有
-    config_diff = []  # 配置差异列表
+    config_diff: List[Dict[str, Any]] = []
 
     print("[Step 2] 对比结果")
     print("-" * 70)
@@ -205,11 +236,9 @@ def main():
         print(f"{'Topic':<40} {'源队列':<12} {'目标队列':<12} {'源类型':<10} {'目标类型':<10} {'状态'}")
         print("-" * 70)
 
-        config_diff = []
-
         for topic in matched:
-            src_config = get_topic_config(args.source, topic)
-            tgt_config = get_topic_config(args.target, topic)
+            src_config = get_topic_config(args.source, topic, config)
+            tgt_config = get_topic_config(args.target, topic, config)
 
             # 对比配置
             queues_match = (
@@ -261,7 +290,7 @@ def main():
     # JSON 输出
     if args.json:
         print()
-        result = {
+        result: Dict[str, Any] = {
             'source': args.source,
             'target': args.target,
             'source_count': len(source_topics),

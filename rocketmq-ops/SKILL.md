@@ -11,6 +11,7 @@ This skill provides RocketMQ topic migration and management capabilities for AI 
 
 - **Topic Migration**: Export and create topics with NORMAL type (RocketMQ 5.x compatible)
 - **Topic Verification**: Compare source and target servers, detect missing/extra topics
+- **Auto-Detect**: Automatically detect Docker containers, mqadmin path, cluster name
 - **Dry Run Mode**: Preview topics before migration
 - **Detailed Comparison**: Compare queue numbers, permissions, message types
 - **Safety First**: Auto-filter system topics (%RETRY%, %DLQ%, rmq_sys_*)
@@ -18,10 +19,10 @@ This skill provides RocketMQ topic migration and management capabilities for AI 
 ## Prerequisites
 
 1. SSH config configured with source and target servers
-2. RocketMQ 5.x installed on both servers (namesrv + broker containers)
+2. RocketMQ 5.x installed on both servers (Docker containers: namesrv + broker)
 3. Python dependencies:
 ```bash
-pip install paramiko
+pip install paramiko pyyaml
 ```
 
 ## Scripts
@@ -30,10 +31,37 @@ pip install paramiko
 |--------|----------|
 | `rocketmq_topic_migration.py` | Topic migration from source to target |
 | `rocketmq_topic_verification.py` | Verify and compare topics between servers |
+| `rocketmq_config.py` | Configuration management + auto-detect CLI |
 
 ## Usage
 
-### 1. Topic Migration
+### 1. Auto-Detect Configuration (Recommended for Docker)
+
+Automatically detect RocketMQ configuration from Docker containers:
+
+```bash
+# Detect and display configuration
+python rocketmq-ops/scripts/rocketmq_config.py 服务器别名
+
+# Detect and save to config.yaml
+python rocketmq-ops/scripts/rocketmq_config.py 服务器别名 --save
+```
+
+**Auto-detects:**
+- Container names (namesrv_container, broker_container)
+- mqadmin path inside container
+- Cluster name
+- NameServer address
+
+### 2. Topic Migration
+
+**Auto-detect mode (recommended):**
+```bash
+python rocketmq-ops/scripts/rocketmq_topic_migration.py \
+  --source 源服务器别名 \
+  --target 目标服务器别名 \
+  --auto-detect
+```
 
 **Basic migration:**
 ```bash
@@ -47,6 +75,7 @@ python rocketmq-ops/scripts/rocketmq_topic_migration.py \
 python rocketmq-ops/scripts/rocketmq_topic_migration.py \
   --source 源服务器别名 \
   --target 目标服务器别名 \
+  --auto-detect \
   --dry-run
 ```
 
@@ -55,6 +84,7 @@ python rocketmq-ops/scripts/rocketmq_topic_migration.py \
 python rocketmq-ops/scripts/rocketmq_topic_migration.py \
   --source 源服务器别名 \
   --target 目标服务器别名 \
+  --auto-detect \
   --verify
 ```
 

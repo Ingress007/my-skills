@@ -8,14 +8,14 @@ Claude Code Skills 个人仓库，包含用于 AI Agent 的实用技能模块。
 |-------|------|----------|
 | [linux-ops](linux-ops/) | Linux 服务器运维 | SSH 执行、系统诊断、安全控制 |
 | [docker-ops](docker-ops/) | Docker 容器管理 | 容器/镜像/Compose 管理、多仓库支持 |
-| [rocketmq-ops](rocketmq-ops/) | RocketMQ 迁移管理 | Topic 导出/迁移/验证、系统过滤、配置对比 |
+| [rocketmq-ops](rocketmq-ops/) | RocketMQ 迁移管理 | Topic 导出/迁移/验证、配置化支持 |
 
 ## 快速开始
 
 ### 1. 安装依赖
 
 ```bash
-pip install paramiko
+pip install paramiko pyyaml
 ```
 
 ### 2. 配置 SSH
@@ -62,6 +62,12 @@ python rocketmq-ops/scripts/rocketmq_topic_verification.py --source 源服务器
 my-skills/
 ├── README.md                   # 本文件
 │
+├── shared/                     # 公共模块（供所有 Skill 复用）
+│   ├── __init__.py
+│   ├── ssh_client.py           # SSH 连接封装
+│   ├── ssh_config_parser.py    # SSH config 解析
+│   └── type_defs.py            # 类型定义
+│
 ├── linux-ops/                  # Linux 基础操作 Skill
 │   ├── README.md
 │   ├── SKILL.md               # Claude Code Skill 定义
@@ -69,30 +75,31 @@ my-skills/
 │   ├── test_skill.py          # 测试套件
 │   └── scripts/
 │       ├── ssh_manager.py     # CLI 入口
-│       ├── ssh_config_parser.py  # SSH config 解析
 │       ├── config_manager.py  # 配置和安全检查
 │       ├── blacklist.json     # 安全规则
 │       └── diagnose.sh        # 诊断脚本
 │
-├── rocketmq-ops/               # RocketMQ 迁移 Skill
+├── docker-ops/                 # Docker 操作 Skill
 │   ├── README.md
 │   ├── SKILL.md               # Claude Code Skill 定义
 │   ├── requirements.txt       # 依赖：paramiko
+│   ├── test_skill.py          # 测试套件
 │   └── scripts/
-│       ├── rocketmq_topic_migration.py    # Topic 迁移脚本
-│       └── rocketmq_topic_verification.py # Topic 核对脚本
+│       ├── docker_manager.py  # CLI 入口
+│       ├── docker_commands.py # Docker 命令生成器
+│       ├── config_manager.py  # 配置和安全检查
+│       ├── blacklist.json     # 安全规则
+│       └── diagnose.sh        # Docker 诊断脚本
 │
-└── docker-ops/                 # Docker 操作 Skill
+└── rocketmq-ops/               # RocketMQ 迁移 Skill
     ├── README.md
     ├── SKILL.md               # Claude Code Skill 定义
-    ├── requirements.txt       # 依赖：paramiko
-    ├── test_skill.py          # 测试套件
+    ├── config.yaml            # RocketMQ 配置文件
+    ├── requirements.txt       # 依赖：paramiko, pyyaml
     └── scripts/
-        ├── docker_manager.py  # CLI 入口
-        ├── docker_commands.py # Docker 命令生成器
-        ├── config_manager.py  # 配置和安全检查（复用 linux-ops SSH 解析）
-        ├── blacklist.json     # 安全规则
-        └── diagnose.sh        # Docker 诊断脚本
+        ├── rocketmq_config.py              # 配置管理模块
+        ├── rocketmq_topic_migration.py    # Topic 迁移脚本
+        └── rocketmq_topic_verification.py # Topic 核对脚本
 ```
 
 ## 测试
@@ -100,6 +107,23 @@ my-skills/
 ```bash
 python linux-ops/test_skill.py
 python docker-ops/test_skill.py
+```
+
+## 配置优先级
+
+RocketMQ 支持多级配置覆盖：
+
+**优先级**: CLI参数 > 自动检测 > 配置文件 > 默认值
+
+```bash
+# 使用自动检测（推荐）
+python rocketmq-ops/scripts/rocketmq_topic_migration.py \
+  --source s1 --target s2 --auto-detect
+
+# 使用命令行参数覆盖自动检测结果
+python rocketmq-ops/scripts/rocketmq_topic_migration.py \
+  --source s1 --target s2 --auto-detect \
+  --cluster MyCluster
 ```
 
 ## 许可证

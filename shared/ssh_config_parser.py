@@ -2,11 +2,11 @@
 SSH Config Parser - Parse OpenSSH config file format
 """
 import os
-import re
 from pathlib import Path
+from typing import Dict, Optional, List
 
 
-def get_ssh_config_path():
+def get_ssh_config_path() -> str:
     """Get the default SSH config file path."""
     if os.name == 'nt':
         # Windows
@@ -17,7 +17,7 @@ def get_ssh_config_path():
         return os.path.expanduser('~/.ssh/config')
 
 
-def parse_ssh_config(config_path=None):
+def parse_ssh_config(config_path: Optional[str] = None) -> Dict[str, Dict[str, Optional[str | int]]]:
     """
     Parse SSH config file and return a dict of host configurations.
 
@@ -33,8 +33,8 @@ def parse_ssh_config(config_path=None):
     if not os.path.exists(config_path):
         return {}
 
-    hosts = {}
-    current_host = None
+    hosts: Dict[str, Dict[str, Optional[str | int]]] = {}
+    current_host: Optional[str] = None
 
     with open(config_path, 'r', encoding='utf-8') as f:
         for line in f:
@@ -82,7 +82,7 @@ def parse_ssh_config(config_path=None):
     return hosts
 
 
-def get_host_config(alias, config_path=None):
+def get_host_config(alias: str, config_path: Optional[str] = None) -> Optional[Dict[str, Optional[str | int]]]:
     """
     Get configuration for a specific host alias.
 
@@ -97,7 +97,7 @@ def get_host_config(alias, config_path=None):
     return hosts.get(alias)
 
 
-def list_hosts(config_path=None):
+def list_hosts(config_path: Optional[str] = None) -> List[str]:
     """
     List all host aliases from SSH config.
 
