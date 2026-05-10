@@ -6,7 +6,7 @@ Claude Code Skills 个人仓库，包含用于 AI Agent 的实用技能模块。
 
 | Skill | 描述 | 主要功能 |
 |-------|------|----------|
-| [linux-ops](linux-ops/) | Linux 服务器运维 | SSH 执行、系统诊断、安全控制 |
+| [linux-ops](linux-ops/) | Linux 服务器运维 | SSH 执行、系统诊断、服务器管理、安全控制 |
 | [docker-ops](docker-ops/) | Docker 容器管理 | 容器/镜像/Compose 管理、多仓库支持 |
 | [rocketmq-ops](rocketmq-ops/) | RocketMQ 迁移管理 | Topic 导出/迁移/验证、配置化支持 |
 
@@ -31,6 +31,18 @@ Host my-server
 ```
 
 ### 3. 使用示例
+
+**服务器管理（新增）：**
+```bash
+# 添加服务器（自动配置 SSH Key）
+python linux-ops/scripts/server_manager.py add my-server 192.168.1.10 --user root
+
+# 列出所有服务器
+python linux-ops/scripts/server_manager.py list
+
+# 删除服务器
+python linux-ops/scripts/server_manager.py remove my-server
+```
 
 **Linux 操作：**
 ```bash
@@ -64,8 +76,9 @@ my-skills/
 │
 ├── shared/                     # 公共模块（供所有 Skill 复用）
 │   ├── __init__.py
-│   ├── ssh_client.py           # SSH 连接封装
-│   ├── ssh_config_parser.py    # SSH config 解析
+│   ├── ssh_client.py           # SSH 连接封装（含指纹管理）
+│   ├── ssh_config_parser.py    # SSH config 解析和写入
+│   ├── ssh_key_manager.py      # SSH 密钥生成管理
 │   └── type_defs.py            # 类型定义
 │
 ├── linux-ops/                  # Linux 基础操作 Skill
@@ -74,7 +87,8 @@ my-skills/
 │   ├── requirements.txt       # 依赖：paramiko
 │   ├── test_skill.py          # 测试套件
 │   └── scripts/
-│       ├── ssh_manager.py     # CLI 入口
+│       ├── ssh_manager.py     # SSH 命令执行 CLI
+│       ├── server_manager.py  # 服务器添加/删除 CLI
 │       ├── config_manager.py  # 配置和安全检查
 │       ├── blacklist.json     # 安全规则
 │       └── diagnose.sh        # 诊断脚本

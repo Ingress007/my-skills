@@ -8,6 +8,8 @@ Linux 服务器远程运维技能，通过 SSH 安全执行命令和系统诊断
 |------|------|
 | **SSH Config 集成** | 直接读取 `~/.ssh/config` 配置，无需额外存储 |
 | **密钥认证** | 使用 SSH 密钥认证，安全无密码 |
+| **服务器管理** | 一键添加/删除服务器，自动配置 SSH Key 认证 |
+| **指纹验证** | 添加服务器时验证 host key 指纹，防止中间人攻击 |
 | **命令安全机制** | 黑名单阻止危险命令，敏感命令需确认 |
 | **系统诊断** | 一键获取服务器健康状态 |
 
@@ -19,7 +21,21 @@ pip install paramiko
 
 ## 配置
 
-确保 `~/.ssh/config` 配置了服务器：
+### 方式一：自动配置（推荐）
+
+使用 `server_manager.py` 自动添加服务器，会自动：
+- 生成 SSH 密钥（如不存在）
+- 上传公钥到服务器
+- 配置 SSH config
+- 验证 host key 指纹
+
+```bash
+python linux-ops/scripts/server_manager.py add my-server 192.168.1.10 --user root
+```
+
+### 方式二：手动配置
+
+手动编辑 `~/.ssh/config`：
 
 ```ssh
 Host web-prod
@@ -37,16 +53,46 @@ Host db-staging
 
 ## 使用方法
 
-### 列出服务器
+### 服务器管理
+
+#### 添加服务器
 
 ```bash
-python linux-ops/scripts/ssh_manager.py list-servers
+# 交互式添加（需确认指纹）
+python linux-ops/scripts/server_manager.py add <name> <ip> --port 22 --user root
+
+# 自动接受指纹
+python linux-ops/scripts/server_manager.py add my-server 192.168.1.100 -y
+```
+
+添加流程：
+1. 获取服务器 SSH 指纹并显示
+2. 用户确认指纹（防止中间人攻击）
+3. 测试密码连接
+4. 生成/检查本地 SSH Key
+5. 上传公钥到服务器 authorized_keys
+6. 写入 SSH config 配置
+7. 验证 Key 认证是否生效
+
+#### 删除服务器
+
+```bash
+python linux-ops/scripts/server_manager.py remove <name>
+```
+
+#### 列出服务器
+
+```bash
+python linux-ops/scripts/server_manager.py list
 ```
 
 输出：
 ```json
 {
-  "hosts": ["web-prod", "db-staging"]
+  "status": "success",
+  "config_path": "~/.ssh/config",
+  "hosts": ["web-prod", "db-staging"],
+  "count": 2
 }
 ```
 
@@ -98,7 +144,17 @@ python linux-ops/scripts/ssh_manager.py diagnose <alias>
 
 ## 安全机制
 
-### 黑名单（完全阻止）
+### 服务器添加安全流程
+
+| 步骤 | 安全措施 |
+|------|---------|
+| 指纹获取 | 使用 Transport 直接获取，不验证 host key |
+| 用户确认 | 交互式确认指纹，防止中间人攻击 |
+| known_hosts | 用户确认后写入，后续连接可验证 |
+| 公钥上传 | stdin 安全写入，避免命令注入 |
+| 文件权限 | SSH config 和 known_hosts 设置 0o600 |
+
+### 命令执行黑名单（完全阻止）
 
 | 命令 | 说明 |
 |------|------|
@@ -171,12 +227,23 @@ linux-ops/
 ├── requirements.txt       # 依赖：paramiko
 ├── test_skill.py          # 测试套件
 └── scripts/
-    ├── ssh_manager.py     # CLI 入口
-    ├── ssh_config_parser.py  # SSH config 解析
+    ├── ssh_manager.py     # SSH 命令执行 CLI
+    ├── server_manager.py  # 服务器添加/删除 CLI
     ├── config_manager.py  # 配置和安全检查
     ├── blacklist.json     # 安全规则
     └── diagnose.sh        # 诊断脚本
 ```
+
+## 相关文件
+
+服务器配置涉及的文件：
+
+| 文件 | 路径 | 用途 |
+|------|------|------|
+| SSH config | `~/.ssh/config` | 服务器连接配置 |
+| known_hosts | `~/.ssh/known_hosts` | 已验证的 host key |
+| 私钥 | `~/.ssh/id_rsa` | SSH 私钥（无密码） |
+| 公钥 | `~/.ssh/id_rsa.pub` | 上传到服务器的公钥 |
 
 ## 许可证
 

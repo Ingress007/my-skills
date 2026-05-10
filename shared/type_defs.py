@@ -26,3 +26,21 @@ class CommandCheckResult(TypedDict):
     allowed: bool
     requires_confirmation: bool
     reason: str
+
+
+class ServerAddConfig(TypedDict):
+    """Server configuration for adding new host"""
+    name: str          # Server alias name (unique)
+    ip: str            # Server IP address
+    port: int          # SSH port (default 22)
+    user: str          # SSH username (default root)
+    password: str      # Password (one-time use, not saved)
+
+
+class SSHConfigEntry(TypedDict, total=False):
+    """SSH config entry for writing to config file"""
+    host: str                    # Host alias
+    hostname: str                # Server IP or hostname
+    user: str                    # SSH username
+    port: int                    # SSH port
+    identityfile: Optional[str]  # Path to private key (optional)
