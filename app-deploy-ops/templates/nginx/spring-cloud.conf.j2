@@ -1,0 +1,73 @@
+# Spring Cloud 微服务 Nginx 配置
+# 自动根据 preset 中的 routes 生成多 upstream + 多 location
+
+{% for route in nginx_routes %}
+upstream {{ route.upstream }} {
+    {% for svc in backend_services %}
+    {% if svc.name == route.upstream %}
+    server 127.0.0.1:{{ svc.port }};
+    {% endif %}
+    {% endfor %}
+    keepalive 32;
+}
+{% endfor %}
+
+server {
+    listen 80;
+    server_name {{ server_name | default('_') }};
+
+    # 前端静态资源
+    location / {
+        root {{ frontend_dist_dir }};
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    {% for route in nginx_routes %}
+    # {{ route.upstream }}
+    location {{ route.path }}/ {
+        proxy_pass http://{{ route.upstream }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    {% endfor %}
+
+    # 静态资源缓存
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+        root {{ frontend_dist_dir }};
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }
+}
+
+{% if ssl_enabled %}
+server {
+    listen 443 ssl http2;
+    server_name {{ server_name }};
+
+    ssl_certificate {{ ssl_cert_path }};
+    ssl_certificate_key {{ ssl_key_path }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    location / {
+        root {{ frontend_dist_dir }};
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    {% for route in nginx_routes %}
+    location {{ route.path }}/ {
+        proxy_pass http://{{ route.upstream }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    {% endfor %}
+}
+{% endif %}

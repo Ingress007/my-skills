@@ -1,0 +1,72 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ${ENV_NAME}-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: {{ mysql.root_password }}
+      MYSQL_DATABASE: {{ mysql.database }}
+      MYSQL_USER: {{ mysql.app_user }}
+      MYSQL_PASSWORD: {{ mysql.app_password }}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ../data/mysql:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: ${ENV_NAME}-redis
+    command: redis-server --appendonly yes --requirepass {{ redis.password }}
+    volumes:
+      - ../data/redis:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  nacos:
+    image: nacos/nacos-server:v2.2.3
+    container_name: ${ENV_NAME}-nacos
+    environment:
+      MODE: standalone
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: mysql
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: nacos_config
+      MYSQL_SERVICE_USER: {{ mysql.app_user }}
+      MYSQL_SERVICE_PASSWORD: {{ mysql.app_password }}
+    ports:
+      - "8848:8848"
+    networks:
+      - app-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: ${ENV_NAME}-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: {{ rabbitmq.user }}
+      RABBITMQ_DEFAULT_PASS: {{ rabbitmq.password }}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - ../data/rabbitmq:/var/lib/rabbitmq
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
+    name: ${ENV_NAME}-network

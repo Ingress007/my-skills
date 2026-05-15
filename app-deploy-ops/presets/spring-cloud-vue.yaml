@@ -1,0 +1,76 @@
+name: spring-cloud-vue
+description: Java 微服务架构 + Vue 前端
+
+architecture:
+  type: spring-cloud
+
+frontend:
+  framework: vue
+  build_tool: vite
+  deploy:
+    type: nginx-static
+    dist_dir: /opt/apps/{env}/frontend/vue-app/dist
+
+backend:
+  framework: spring-boot
+  registry: nacos
+  deploy:
+    type: jar
+    process_manager: systemd
+    base_dir: /opt/apps/{env}/backend/services
+  services:
+    - name: user-service
+      port: 8081
+    - name: order-service
+      port: 8082
+    - name: pay-service
+      port: 8083
+
+middleware:
+  enabled: true
+  compose_file: middleware-springcloud.yaml.j2
+  containers:
+    - name: mysql
+      image: mysql:8.0
+    - name: redis
+      image: redis:7
+    - name: nacos
+      image: nacos/nacos-server:v2.2.3
+    - name: rabbitmq
+      image: rabbitmq:3-management
+
+java:
+  version: 17
+  provider: sdkman
+  jvm_opts:
+    xms: 256m
+    xmx: 512m
+
+nginx:
+  config_path: /etc/nginx/conf.d/app.conf
+  routes:
+    - path: /api/user
+      upstream: user-service
+    - path: /api/order
+      upstream: order-service
+    - path: /api/pay
+      upstream: pay-service
+
+variables:
+  app_name: myapp
+  env: prod
+  server_name: _
+  frontend_dist_dir: /opt/apps/{env}/frontend/vue-app/dist
+  db_host: 127.0.0.1
+  db_port: 3306
+  db_name: app_db
+  redis_host: 127.0.0.1
+  redis_port: 6379
+  log_level: INFO
+  nacos_enabled: true
+  nacos_host: 127.0.0.1
+  nacos_port: 8848
+  ssl_enabled: false
+  java_home: /home/app/.sdkman/candidates/java/current
+  jvm_xms: 256m
+  jvm_xmx: 512m

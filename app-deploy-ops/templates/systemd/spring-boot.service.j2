@@ -1,0 +1,28 @@
+[Unit]
+Description=Spring Boot Application - {{ service_name }}
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=app
+Group=app
+WorkingDirectory=/opt/apps/{{ env }}/backend/services/{{ service_name }}
+Environment="JAVA_HOME={{ java_home }}"
+Environment="SPRING_PROFILES_ACTIVE={{ env }}"
+ExecStart={{ java_home }}/bin/java \
+    -Xms{{ jvm_xms | default('512m') }} \
+    -Xmx{{ jvm_xmx | default('1024m') }} \
+    -XX:+UseG1GC \
+    -XX:MaxGCPauseMillis=200 \
+    -Dfile.encoding=UTF-8 \
+    -Djava.security.egd=file:/dev/./urandom \
+    -jar /opt/apps/{{ env }}/backend/services/{{ service_name }}/app.jar
+ExecStop=/bin/kill -15 $MAINPID
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

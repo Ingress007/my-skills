@@ -1,0 +1,5 @@
+com\example\pay\entity\PayRecord.class
+com\example\pay\controller\PayController.class
+com\example\pay\dao\PayRecordMapper.class
+com\example\pay\PayApplication.class
+com\example\pay\service\PayService.class

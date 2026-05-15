@@ -1,0 +1,65 @@
+name: spring-boot-vue
+description: Java 单体应用 + Vue 前端
+
+architecture:
+  type: spring-boot
+
+frontend:
+  framework: vue
+  build_tool: vite
+  deploy:
+    type: nginx-static
+    dist_dir: /opt/apps/{env}/frontend/vue-app/dist
+
+backend:
+  framework: spring-boot
+  deploy:
+    type: jar
+    process_manager: systemd
+    app_dir: /opt/apps/{env}/backend/services/app
+    service_name: app
+
+middleware:
+  enabled: true
+  compose_file: middleware-springboot.yaml.j2
+  containers:
+    - name: mysql
+      image: mysql:8.0
+      essential: true
+    - name: redis
+      image: redis:7
+      essential: true
+
+java:
+  version: 17
+  provider: sdkman
+  jvm_opts:
+    xms: 512m
+    xmx: 1024m
+
+nginx:
+  upstream:
+    - name: backend
+      servers:
+        - 127.0.0.1:8080
+  config_path: /etc/nginx/conf.d/app.conf
+
+variables:
+  app_name: myapp
+  env: prod
+  server_name: _
+  frontend_dist_dir: /opt/apps/{env}/frontend/vue-app/dist
+  db_host: 127.0.0.1
+  db_port: 3306
+  db_name: app_db
+  app_port: 8080
+  redis_host: 127.0.0.1
+  redis_port: 6379
+  log_level: INFO
+  nacos_enabled: false
+  ssl_enabled: false
+  ssl_cert_path: /etc/nginx/ssl/cert.pem
+  ssl_key_path: /etc/nginx/ssl/key.pem
+  java_home: /home/app/.sdkman/candidates/java/current
+  jvm_xms: 512m
+  jvm_xmx: 1024m
