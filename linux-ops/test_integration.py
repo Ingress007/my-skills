@@ -28,10 +28,10 @@ from ssh_manager import SSHManager
 from type_defs import ServerAddConfig
 
 # Test server configuration
-TEST_SERVER_NAME = "wsl-ubuntu-test"
-TEST_SERVER_IP = "172.17.158.79"
+TEST_SERVER_NAME = "wsl-ubuntu"
+TEST_SERVER_IP = "10.0.0.192"
 TEST_SERVER_USER = "root"
-TEST_SERVER_PASSWORD = "fds94014"
+TEST_SERVER_PASSWORD = "fds941014"
 TEST_SERVER_PORT = 22
 
 
@@ -380,8 +380,9 @@ def test_diagnose():
         print(f"  诊断输出 ({len(stdout)} bytes):")
         for line in stdout.strip().split('\n')[:25]:
             print(f"    | {line}")
-        if stdout.count('\n') > 25:
-            print(f"    | ... (共 {stdout.count('\n')} 行)")
+        line_count = stdout.count("\n")
+        if line_count > 25:
+            print(f"    | ... (共 {line_count} 行)")
         
         # Verify key information is present
         runner.check("Memory:" in stdout or "Mem:" in stdout or "mem" in stdout.lower(), "诊断包含内存信息")
@@ -467,7 +468,7 @@ def test_remove_server():
 def main():
     print("=" * 60)
     print("  Linux Ops - 服务器管理功能集成测试")
-    print("  Target: wsl-ubuntu-test (172.17.158.79)")
+    print("  Target: wsl-ubuntu (10.0.0.192)")
     print("=" * 60)
 
     total_passed = 0
